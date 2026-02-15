@@ -5,7 +5,7 @@ LineCounter
 C言語で作られた行数カウンターです。
 
 ## Image
-![image](https://github.com/user-attachments/assets/9b9cced1-8580-4214-ada9-9a363877c5cc)
+![image](/assets/image.png)
 
 ## How to start
  - exeファイルから起動する方法
