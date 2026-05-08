@@ -1,8 +1,15 @@
 #include <stdio.h>
 #include <string.h>
+#include <Windows.h>
+
+typedef struct {
+    char **filepaths;
+    int filecount;
+} FileResult;
 
 long Getfilesize(FILE *file,char *filepath);
 int linecounter(FILE *file,char *filepath);
+FileResult FileSearch(char *filepath);
 
 int main(int argc, char *argv[]) {
     int total_linecount = 0;
@@ -11,19 +18,24 @@ int main(int argc, char *argv[]) {
         printf("Usage: %s <filepath>\n", argv[0]);
         return 1;
     }
-    for (int i = 1;i < argc; i++){
+    FileResult result = FileSearch(argv[1]);
+    for (int i = 0; i < result.filecount; i++){
         FILE *file;
-        file = fopen(argv[i], "r");
+        file = fopen(result.filepaths[i], "r");
         if (file == NULL){
-            printf("File open error: %s\n", argv[i]);
+            printf("File open error: %s\n", result.filepaths[i]);
             continue;
         }
-        long size = Getfilesize(file, argv[i]);
-        int linecount = linecounter(file, argv[i]);
+        long size = Getfilesize(file, result.filepaths[i]);
+        int linecount = linecounter(file, result.filepaths[i]);
         fclose(file);
         total_size = total_size + size;
         total_linecount = total_linecount + linecount;
     }
+    for (int i = 0; i < result.filecount; i++){
+        free(result.filepaths[i]);
+    }
+    free(result.filepaths);
     printf("\n=== TOTAL ===\n");
     printf("Total file size: %ld bytes\n",total_size);
     printf("Total lines: %d line\n", total_linecount);
@@ -47,6 +59,55 @@ int linecounter(FILE *file,char *filepath){
 
     printf("%s lines: %d line\n", filepath, linecount);
     return linecount;
+}
+
+void AddToFileResult(FileResult *result, char *filepath){
+    result->filecount++;
+    char **temp = realloc(result->filepaths, result->filecount * sizeof(char*));
+
+    if (temp == NULL){
+        printf("Memory allocation failed\n");
+        exit(1);
+    }
+
+    result->filepaths = temp;
+    result->filepaths[result->filecount - 1] = _strdup(filepath);
+}
+
+FileResult FileSearch(char *filepath){
+    WIN32_FIND_DATA findData;
+    HANDLE hFind;
+    FileResult result = {NULL, 0};
+    hFind = FindFirstFile(filepath, &findData);
+    if (hFind == INVALID_HANDLE_VALUE){
+        printf("File search error: %s\n", filepath);
+        return result;
+    }
+    char directory[MAX_PATH];
+
+    strcpy(directory, filepath);
+
+    char *lastSlash = strrchr(directory, '\\');
+
+    if (lastSlash != NULL){
+        *(lastSlash + 1) = '\0';
+    }
+    else{
+        directory[0] = '\0';
+    }
+    do {
+        if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)){
+            char fullpath[MAX_PATH];
+            snprintf(fullpath,
+                    MAX_PATH,
+                    "%s%s",
+                    directory,
+                    findData.cFileName);
+            AddToFileResult(&result, fullpath);
+        }
+    } while (FindNextFile(hFind, &findData) != 0);
+    FindClose(hFind);
+    return result;
 }
 
 long Getfilesize(FILE *file,char *filepath){
