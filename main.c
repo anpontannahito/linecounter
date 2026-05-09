@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
         printf("Usage: %s <filepath>\n", argv[0]);
         return 1;
     }
-    for (int i = 0; i < argc; i++){
+    for (int i = 1; i < argc; i++){
         FileResult temp_result = FileSearch(argv[i]);
         for (int j = 0; j < temp_result.filecount; j++){
             AddToFileResult(&result, temp_result.filepaths[j]);
@@ -111,9 +111,11 @@ void FileSearchRecursive(char *directory, char *pattern, FileResult *result){
         return;
     }
     do {
-        if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
-            strcmp(findData.cFileName, ".") != 0 &&
-            strcmp(findData.cFileName, "..") != 0){
+        if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+            if (strcmp(findData.cFileName, ".") == 0 ||
+                strcmp(findData.cFileName, "..") == 0) {
+                continue;
+            }
             char subdir[MAX_PATH];
             snprintf(subdir, MAX_PATH, "%s\\%s", directory, findData.cFileName);
             FileSearchRecursive(subdir, pattern, result);
