@@ -10,15 +10,22 @@ typedef struct {
 long Getfilesize(FILE *file,char *filepath);
 int linecounter(FILE *file,char *filepath);
 FileResult FileSearch(char *filepath);
+void AddToFileResult(FileResult *result, char *filepath);
 
 int main(int argc, char *argv[]) {
     int total_linecount = 0;
     long total_size = 0;
+    FileResult result;
     if (argc < 2){
         printf("Usage: %s <filepath>\n", argv[0]);
         return 1;
     }
-    FileResult result = FileSearch(argv[1]);
+    for (int i = 0; i < argc; i++){
+        FileResult temp_result = FileSearch(argv[i]);
+        for (int j = 0; j < temp_result.filecount; j++){
+            AddToFileResult(&result, temp_result.filepaths[j]);
+        }
+    }
     for (int i = 0; i < result.filecount; i++){
         FILE *file;
         file = fopen(result.filepaths[i], "r");
@@ -74,39 +81,66 @@ void AddToFileResult(FileResult *result, char *filepath){
     result->filepaths[result->filecount - 1] = _strdup(filepath);
 }
 
-FileResult FileSearch(char *filepath){
+void FileSearchRecursive(char *directory, char *pattern, FileResult *result){
     WIN32_FIND_DATA findData;
     HANDLE hFind;
-    FileResult result = {NULL, 0};
-    hFind = FindFirstFile(filepath, &findData);
+    char searchPath[MAX_PATH];
+    snprintf(searchPath, MAX_PATH, "%s\\%s", directory, pattern);
+    hFind = FindFirstFile(searchPath, &findData);
     if (hFind == INVALID_HANDLE_VALUE){
-        printf("File search error: %s\n", filepath);
-        return result;
-    }
-    char directory[MAX_PATH];
-
-    strcpy(directory, filepath);
-
-    char *lastSlash = strrchr(directory, '\\');
-
-    if (lastSlash != NULL){
-        *(lastSlash + 1) = '\0';
-    }
-    else{
-        directory[0] = '\0';
+        printf("File search error: %s\n", searchPath);
+        return;
     }
     do {
         if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)){
             char fullpath[MAX_PATH];
             snprintf(fullpath,
                     MAX_PATH,
-                    "%s%s",
+                    "%s\\%s",
                     directory,
                     findData.cFileName);
-            AddToFileResult(&result, fullpath);
+            AddToFileResult(result, fullpath);
         }
     } while (FindNextFile(hFind, &findData) != 0);
     FindClose(hFind);
+
+    snprintf(searchPath, MAX_PATH, "%s\\*", directory);
+    hFind = FindFirstFile(searchPath, &findData);
+    if (hFind == INVALID_HANDLE_VALUE){
+        printf("Directory search error: %s\n", searchPath);
+        return;
+    }
+    do {
+        if ((findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+            strcmp(findData.cFileName, ".") != 0 &&
+            strcmp(findData.cFileName, "..") != 0){
+            char subdir[MAX_PATH];
+            snprintf(subdir, MAX_PATH, "%s\\%s", directory, findData.cFileName);
+            FileSearchRecursive(subdir, pattern, result);
+        }
+    } while (FindNextFile(hFind, &findData) != 0);
+    FindClose(hFind);
+}
+
+FileResult FileSearch(char *filepath)
+{
+    FileResult result = {0};
+
+    char dir[MAX_PATH];
+    char pattern[MAX_PATH];
+
+    const char *lastSlash = strrchr(filepath, '\\');
+
+    if (!lastSlash) {
+        strcpy(dir, ".");
+        strcpy(pattern, filepath);
+    } else {
+        size_t len = lastSlash - filepath;
+        strncpy(dir, filepath, len);
+        dir[len] = '\0';
+        strcpy(pattern, lastSlash + 1);
+    }
+    FileSearchRecursive(dir, pattern, &result);
     return result;
 }
 
